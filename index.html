@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameBird - Multijoueur</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            cursor: none;
+        }
+        canvas {
+            display: block;
+        }
+        #loginScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #loginBox {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        #loginBox h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        #loginBox p {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        #usernameInput {
+            width: 250px;
+            padding: 15px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #joinButton {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        #joinButton:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        #playersList {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            min-width: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        #playersList h3 {
+            margin: 0 0 10px 0;
+            border-bottom: 2px solid white;
+            padding-bottom: 5px;
+        }
+        .player-item {
+            padding: 5px;
+            margin: 5px 0;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.1);
+        }
+        #crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+            z-index: 100;
+            transition: all 0.1s;
+        }
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        #crosshair::after {
+            height: 2px;
+            width: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.6);
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 16px;
+        }
+        #chat {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            z-index: 100;
+        }
+        #chatMessages {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 10px 10px 0 0;
+            height: 150px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        #chatInput {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 0 0 10px 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            font-size: 14px;
+        }
+        .chat-message {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="loginScreen">
+        <div id="loginBox">
+            <h1>🦅 GameBird Multijoueur</h1>
+            <p>Entrez votre pseudo pour rejoindre la partie</p>
+            <input type="text" id="usernameInput" placeholder="Votre pseudo" maxlength="15" />
+            <button id="joinButton">Rejoindre la partie</button>
+        </div>
+    </div>
+
+    <div id="ui" style="display: none;">
+        <div>🦅 Altitude: <span id="altitude">0</span>m</div>
+        <div>⚡ Énergie: <span id="energy">100</span>%</div>
+        <div>✈️ Mode: <span id="mode">Au sol</span></div>
+        <div>🥚 Score: <span id="score">0</span></div>
+        <div id="egg-status" style="display: none;">🥚 Œuf transporté</div>
+        <div id="nest-hint" style="display: none; color: yellow;">📍 Appuyez sur R</div>
+    </div>
+
+    <div id="playersList" style="display: none;">
+        <h3>👥 Joueurs (<span id="playerCount">0</span>)</h3>
+        <div id="playersContent"></div>
+    </div>
+
+    <div id="crosshair" style="display: none;"></div>
+    
+    <div id="instructions" style="display: none;">
+        🎮 ZQSD - Bouger | Souris - Regarder | F - Voler | E - Laser | R - Œuf | T - Chat
+    </div>
+
+    <div id="chat" style="display: none;">
+        <div id="chatMessages"></div>
+        <input type="text" id="chatInput" placeholder="Appuyez sur T pour chatter..." disabled />
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let socket;
+        let myPlayerId;
+        let myUsername;
+        let myColor;
+        
+        let scene, camera, renderer;
+        let bird, birdBody, birdHead, beak;
+        let otherPlayers = {};
+        let trees = [];
+        let nests = [];
+        let laserBeam = null;
+        let carriedEggMesh = null;
+        let keys = {};
+        let cameraRotation = { horizontal: 0, vertical: 0 };
+        let isFlying = false;
+        let energy = 100;
+        let velocity = { x: 0, y: 0, z: 0 };
+        let score = 0;
+        let chatActive = false;
+
+        // Écran de connexion
+        document.getElementById('joinButton').addEventListener('click', joinGame);
+        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinGame();
+        });
+
+        function joinGame() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if (username.length < 2) {
+                alert('Votre pseudo doit faire au moins 2 caractères');
+                return;
+            }
+
+            myUsername = username;
+            myColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+
+            // Cacher l'écran de connexion
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('playersList').style.display = 'block';
+            document.getElementById('crosshair').style.display = 'block';
+            document.getElementById('instructions').style.display = 'block';
+            document.getElementById('chat').style.display = 'block';
+
+            // Connexion Socket.io
+            socket = io();
+            
+            socket.on('connect', () => {
+                myPlayerId = socket.id;
+                socket.emit('playerJoin', { username: myUsername, color: myColor });
+                init();
+            });
+
+            // Recevoir les joueurs actuels
+            socket.on('currentPlayers', (players) => {
+                Object.keys(players).forEach(id => {
+                    if (id !== myPlayerId) {
+                        addOtherPlayer(players[id]);
+                    }
+                });
+                updatePlayersList(players);
+            });
+
+            // Nouveau joueur rejoint
+            socket.on('newPlayer', (player) => {
+                addOtherPlayer(player);
+                addChatMessage('Système', `${player.username} a rejoint la partie`, '#FFD700');
+            });
+
+            // Un joueur bouge
+            socket.on('playerMoved', (data) => {
+                if (otherPlayers[data.id]) {
+                    otherPlayers[data.id].targetPosition = data.position;
+                    otherPlayers[data.id].targetRotation = data.rotation;
+                    otherPlayers[data.id].isFlying = data.isFlying;
+                }
+            });
+
+            // Un joueur se déconnecte
+            socket.on('playerDisconnected', (id) => {
+                if (otherPlayers[id]) {
+                    scene.remove(otherPlayers[id].mesh);
+                    scene.remove(otherPlayers[id].label);
+                    delete otherPlayers[id];
+                    addChatMessage('Système', 'Un joueur est parti', '#FF6B6B');
+                }
+            });
+
+            // Messages du chat
+            socket.on('chatMessage', (data) => {
+                addChatMessage(data.username, data.message, data.color);
+            });
+        }
+
+        function addOtherPlayer(player) {
+            const otherBird = createOtherBird(player.color);
+            otherBird.position.set(player.position.x, player.position.y, player.position.z);
+            scene.add(otherBird);
+
+            // Label avec le pseudo
+            const label = createPlayerLabel(player.username);
+            scene.add(label);
+
+            otherPlayers[player.id] = {
+                mesh: otherBird,
+                label: label,
+                username: player.username,
+                targetPosition: player.position,
+                targetRotation: player.rotation,
+                isFlying: player.isFlying
+            };
+        }
+
+        function createOtherBird(color) {
+            const birdGroup = new THREE.Group();
+            
+            const bodyGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+            bodyGeometry.scale(1, 0.9, 1.4);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: color });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            birdGroup.add(body);
+
+            const headGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.set(0, 0.3, 0.8);
+            birdGroup.add(head);
+
+            return birdGroup;
+        }
+
+        function createPlayerLabel(username) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            
+            context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            context.font = 'Bold 32px Arial';
+            context.fillStyle = 'white';
+            context.textAlign = 'center';
+            context.fillText(username, 128, 42);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(4, 1, 1);
+
+            return sprite;
+        }
+
+        function updatePlayersList(players) {
+            const content = document.getElementById('playersContent');
+            const count = document.getElementById('playerCount');
+            
+            content.innerHTML = '';
+            count.textContent = Object.keys(players).length;
+
+            Object.keys(players).forEach(id => {
+                const player = players[id];
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                div.innerHTML = `<span style="color: ${player.color}">●</span> ${player.username} - ${player.score} 🥚`;
+                content.appendChild(div);
+            });
+        }
+
+        function addChatMessage(username, message, color) {
+            const chatMessages = document.getElementById('chatMessages');
+            const msg = document.createElement('div');
+            msg.className = 'chat-message';
+            msg.innerHTML = `<span style="color: ${color}">${username}:</span> ${message}`;
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Chat
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 't' || e.key === 'T') {
+                if (!chatActive) {
+                    chatActive = true;
+                    document.getElementById('chatInput').disabled = false;
+                    document.getElementById('chatInput').focus();
+                    e.preventDefault();
+                }
+            }
+        });
+
+        document.getElementById('chatInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const message = e.target.value.trim();
+                if (message.length > 0) {
+                    socket.emit('chatMessage', message);
+                    e.target.value = '';
+                }
+                chatActive = false;
+                e.target.disabled = true;
+                e.target.blur();
+            } else if (e.key === 'Escape') {
+                chatActive = false;
+                e.target.value = '';
+                e.target.disabled = true;
+                e.target.blur();
+            }
+        });
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(50, 50, 50);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            createBird();
+            createForest();
+            createGround();
+
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            renderer.domElement.requestPointerLock();
+            animate();
+        }
+
+        function createBird() {
+            bird = new THREE.Group();
+
+            const bodyGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+            bodyGeometry.scale(1, 0.9, 1.4);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                color: myColor,
+                shininess: 30
+            });
+            birdBody = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            bird.add(birdBody);
+
+            const headGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            birdHead = new THREE.Mesh(headGeometry, bodyMaterial);
+            birdHead.position.set(0, 0.3, 0.8);
+            bird.add(birdHead);
+
+            const beakGeometry = new THREE.ConeGeometry(0.12, 0.35, 8);
+            const beakMaterial = new THREE.MeshPhongMaterial({ color: 0xE8C4A8 });
+            beak = new THREE.Mesh(beakGeometry, beakMaterial);
+            beak.rotation.x = -Math.PI / 2;
+            beak.position.set(0, 0.2, 1.2);
+            bird.add(beak);
+
+            bird.position.set(0, 5, 0);
+            scene.add(bird);
+        }
+
+        function createForest() {
+            for (let i = 0; i < 50; i++) {
+                const x = (Math.random() - 0.5) * 200;
+                const z = (Math.random() - 0.5) * 200;
+                
+                if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
+
+                const treeHeight = 5 + Math.random() * 10;
+                const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.7, treeHeight, 8);
+                const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.set(x, treeHeight / 2, z);
+                scene.add(trunk);
+
+                const foliageGeometry = new THREE.SphereGeometry(3, 16, 16);
+                const foliageMaterial = new THREE.MeshPhongMaterial({ color: 0x228B22 });
+                const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                foliage.position.set(x, treeHeight + 2, z);
+                scene.add(foliage);
+
+                if (Math.random() > 0.7) {
+                    createNest(x, treeHeight + 4.5, z);
+                }
+            }
+        }
+
+        function createNest(x, y, z) {
+            const nestGroup = new THREE.Group();
+            
+            const nestGeometry = new THREE.TorusGeometry(0.8, 0.25, 16, 20);
+            const nestMaterial = new THREE.MeshPhongMaterial({ color: 0x8B7355 });
+            const nest = new THREE.Mesh(nestGeometry, nestMaterial);
+            nest.rotation.x = Math.PI / 2;
+            nestGroup.add(nest);
+
+            const numEggs = 2 + Math.floor(Math.random() * 2);
+            
+            for (let i = 0; i < numEggs; i++) {
+                const eggGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+                eggGeometry.scale(1, 1.4, 1);
+                const eggMaterial = new THREE.MeshPhongMaterial({ color: 0xF5E6D3 });
+                const egg = new THREE.Mesh(eggGeometry, eggMaterial);
+                const angle = (i / numEggs) * Math.PI * 2;
+                egg.position.set(Math.cos(angle) * 0.3, 0.05, Math.sin(angle) * 0.3);
+                nestGroup.add(egg);
+            }
+
+            nestGroup.position.set(x, y, z);
+            scene.add(nestGroup);
+            nests.push({ group: nestGroup, position: new THREE.Vector3(x, y, z) });
+        }
+
+        function createGround() {
+            const groundGeometry = new THREE.PlaneGeometry(300, 300);
+            const groundMaterial = new THREE.MeshPhongMaterial({ color: 0x355E3B });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+        }
+
+        function onKeyDown(e) {
+            if (chatActive) return;
+            
+            const key = e.key.toLowerCase();
+            
+            if (key === 'f' && !keys['f']) {
+                isFlying = !isFlying;
+                document.getElementById('mode').textContent = isFlying ? 'En vol' : 'Au sol';
+            }
+
+            if (key === 'r') {
+                if (carriedEggMesh) {
+                    socket.emit('dropEgg', { position: bird.position });
+                    scene.remove(carriedEggMesh);
+                    carriedEggMesh = null;
+                    score++;
+                    document.getElementById('score').textContent = score;
+                    document.getElementById('egg-status').style.display = 'none';
+                }
+            }
+            
+            keys[key] = true;
+        }
+
+        function onKeyUp(e) {
+            keys[e.key.toLowerCase()] = false;
+        }
+
+        function onMouseMove(e) {
+            cameraRotation.horizontal -= e.movementX * 0.002;
+            cameraRotation.vertical += e.movementY * 0.002;
+            cameraRotation.vertical = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, cameraRotation.vertical));
+        }
+
+        function updateBird() {
+            const moveSpeed = 0.3;
+
+            if (keys['z']) {
+                velocity.x += moveSpeed * Math.sin(cameraRotation.horizontal);
+                velocity.z += moveSpeed * Math.cos(cameraRotation.horizontal);
+                
+                if (isFlying) {
+                    velocity.y -= moveSpeed * Math.sin(cameraRotation.vertical);
+                }
+            }
+            if (keys['s']) {
+                velocity.x -= moveSpeed * Math.sin(cameraRotation.horizontal);
+                velocity.z -= moveSpeed * Math.cos(cameraRotation.horizontal);
+                
+                if (isFlying) {
+                    velocity.y += moveSpeed * Math.sin(cameraRotation.vertical);
+                }
+            }
+            if (keys['q']) {
+                velocity.x += moveSpeed * Math.cos(cameraRotation.horizontal);
+                velocity.z -= moveSpeed * Math.sin(cameraRotation.horizontal);
+            }
+            if (keys['d']) {
+                velocity.x -= moveSpeed * Math.cos(cameraRotation.horizontal);
+                velocity.z += moveSpeed * Math.sin(cameraRotation.horizontal);
+            }
+
+            if (!isFlying) {
+                velocity.y -= 0.08;
+            }
+
+            velocity.x *= 0.88;
+            velocity.z *= 0.88;
+            velocity.y *= 0.88;
+
+            if (isFlying) {
+                energy = Math.max(0, energy - 0.1);
+                
+                if (energy <= 0) {
+                    isFlying = false;
+                    document.getElementById('mode').textContent = 'Au sol';
+                }
+            }
+
+            bird.position.add(new THREE.Vector3(velocity.x, velocity.y, velocity.z));
+
+            if (bird.position.y < 1.5) {
+                bird.position.y = 1.5;
+                velocity.y = 0;
+            }
+
+            bird.rotation.y = cameraRotation.horizontal;
+            bird.rotation.x = cameraRotation.vertical * 0.3;
+
+            // Envoyer la position au serveur
+            if (socket && (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01 || Math.abs(velocity.z) > 0.01)) {
+                socket.emit('playerMove', {
+                    position: bird.position,
+                    rotation: cameraRotation,
+                    isFlying: isFlying
+                });
+            }
+
+            // Caméra
+            const camDistance = 12;
+            const camHeight = 4;
+            camera.position.x = bird.position.x - Math.sin(cameraRotation.horizontal) * camDistance;
+            camera.position.z = bird.position.z - Math.cos(cameraRotation.horizontal) * camDistance;
+            camera.position.y = bird.position.y + camHeight + Math.sin(cameraRotation.vertical) * 3;
+            
+            const lookTarget = new THREE.Vector3(bird.position.x, bird.position.y + 1, bird.position.z);
+            camera.lookAt(lookTarget);
+
+            document.getElementById('altitude').textContent = Math.floor(bird.position.y);
+            document.getElementById('energy').textContent = Math.floor(energy);
+        }
+
+        function updateOtherPlayers() {
+            Object.keys(otherPlayers).forEach(id => {
+                const player = otherPlayers[id];
+                
+                // Interpolation douce
+                player.mesh.position.lerp(
+                    new THREE.Vector3(player.targetPosition.x, player.targetPosition.y, player.targetPosition.z),
+                    0.1
+                );
+                
+                player.mesh.rotation.y = player.targetRotation.horizontal;
+                
+                // Mettre à jour le label
+                player.label.position.set(
+                    player.mesh.position.x,
+                    player.mesh.position.y + 2,
+                    player.mesh.position.z
+                );
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (bird) {
+                updateBird();
+                updateOtherPlayers();
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
